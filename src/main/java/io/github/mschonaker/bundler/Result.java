@@ -4,12 +4,13 @@ import java.beans.PropertyDescriptor;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.apache.commons.beanutils.ConvertUtils;
 import org.apache.commons.beanutils.PropertyUtils;
-import org.apache.commons.lang.StringUtils;
 
 /**
  * A class around a {@link ResultSet} with special target-type capabilities.
@@ -55,12 +56,13 @@ class Result {
 
 	private static String toCamelCase(String value) {
 
-		String[] strings = StringUtils.split(value.toLowerCase(), "_");
+		String[] split = value.split("_");
 
-		for (int i = 1; i < strings.length; i++)
-			strings[i] = StringUtils.capitalize(strings[i]);
-
-		return StringUtils.join(strings);
+		return split[0].toLowerCase() + //
+				Arrays.stream(split, 1, split.length)//
+						.map(String::toLowerCase)//
+						.map(s -> s.substring(0, 1).toUpperCase() + s.substring(1))//
+						.collect(Collectors.joining());
 	}
 
 	private void setNestedProperty(Object bean, String name, Object value) {
