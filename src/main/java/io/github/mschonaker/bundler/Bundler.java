@@ -3,13 +3,11 @@ package io.github.mschonaker.bundler;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.Reader;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.nio.charset.Charset;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
@@ -27,9 +25,8 @@ import java.util.Set;
 
 import javax.sql.DataSource;
 
-import org.apache.commons.beanutils.BeanUtils;
-
-import io.github.mschonaker.bundler.support.Converters;
+import io.github.mschonaker.bundler.coercions.Beans;
+import io.github.mschonaker.bundler.coercions.Coercions;
 
 /**
  * A small API for Object-Relational mapping.
@@ -68,79 +65,24 @@ public class Bundler {
 		registerPrimitiveType(java.sql.Timestamp.class);
 		registerPrimitiveType(InputStream.class);
 
-		// TODO remove statics.
-		Converters.register(java.sql.Timestamp.class, java.util.Date.class, Converters.IDENTITY);
-		Converters.register(java.sql.Date.class, java.util.Date.class, Converters.IDENTITY);
-		Converters.register(java.lang.Number.class, java.lang.Boolean.class, Converters.NUMBER_TO_BOOLEAN);
-		Converters.register(java.lang.Number.class, java.lang.Boolean.TYPE, Converters.NUMBER_TO_BOOLEAN);
-		Converters.register(java.sql.Blob.class, java.io.InputStream.class, Converters.BLOB_TO_INPUTSTREAM);
-		Converters.register(java.lang.Boolean.class, java.lang.Boolean.TYPE, Converters.IDENTITY);
-
 	}
 
 	// ---------------------------------------------------------------------
 	// Inflates.
 
 	/**
-	 * "Inflates" the given type with the given {@link DataSource}.
-	 * <p>
-	 * Where inflate means creating a {@link Proxy} with the capability of
-	 * mapping methods to queries.
-	 * <p>
-	 * Since the name of the file to load is not provided, the file is searched
-	 * in the classpath with the name of the class followed by the
-	 * {@code "-bundler.xml"} extension instead of the {@code ".class"}
-	 * extension.
-	 * <p>
-	 * This method is the same than invoking
-	 * {@link #inflate(Class, Reader, String)}, but taking the reader from the
-	 * classpath and with {@code null} dialect.
-	 *
-	 * @see #inflate(Class, Reader, String)
+	 * Inflates the interface.
 	 */
-	public static <T> T inflate(Class<T> type) throws IOException {
-		return inflate(type, (String) null);
-	}
-
-	/**
-	 * "Inflates" the given type with the given {@link DataSource}.
-	 * <p>
-	 * Where inflate means creating a {@link Proxy} with the capability of
-	 * mapping methods to queries.
-	 * <p>
-	 * Since the name of the file to load is not provided, the file is searched
-	 * in the classpath with the name of the class followed by the
-	 * {@code "-bundler.xml"} extension instead of the {@code ".class"}
-	 * extension.
-	 * <p>
-	 * This method allows to specify a "dialect" string to filter queries from
-	 * the queries file.
-	 */
-	public static <T> T inflate(Class<T> type, String dialect) throws IOException {
-		try (InputStream is = type.getResourceAsStream(type.getSimpleName() + "-bundler.xml")) {
-			return inflate(type, is, dialect);
-		}
-	}
-
-	public static <T> T inflate(Class<T> type, InputStream is) throws IOException {
-		return inflate(type, new InputStreamReader(is, Charset.forName("UTF-8")), null);
-	}
-
-	public static <T> T inflate(Class<T> type, InputStream is, String dialect) throws IOException {
-		return inflate(type, new InputStreamReader(is, Charset.forName("UTF-8")), dialect);
-	}
-
-	public static <T> T inflate(Class<T> type, Reader reader) throws IOException {
-		return inflate(type, reader, null);
-	}
-
-	public static <T> T inflate(Class<T> type, Reader reader, String dialect) throws IOException {
+	public static <T> T inflate(Class<T> type, Reader reader, Coercions coercions, String dialect) throws IOException {
 
 		if (type == null)
 			throw new IllegalArgumentException("type");
 
 		if (reader == null)
 			throw new IllegalArgumentException("reader");
+
+		if (coercions == null)
+			coercions = Coercions.JRE;
 
 		// 1. Obtain the queries.
 
@@ -159,7 +101,7 @@ public class Bundler {
 
 		// 3. Return the proxy.
 
-		return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type }, new BundlerInvocationHandler(type, rootBundle, bindings)));
+		return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type }, new BundlerInvocationHandler(type, rootBundle, bindings, coercions)));
 	}
 
 	// ---------------------------------------------------------------------
@@ -196,23 +138,21 @@ public class Bundler {
 			methods.add(binding.bundle);
 
 		// The names of the queries in the file.
-		Set<String> queries = bundle.subs != null ? bundle.subs.keySet() : Collections.<String> emptySet();
+		Set<String> queries = bundle.subs != null ? bundle.subs.keySet() : Collections.<String>emptySet();
 
 		Set<String> temp = new HashSet<String>();
 		temp.addAll(methods);
 		temp.removeAll(queries);
 
 		if (temp.size() > 0)
-			throw new BundlerValidationException("Couldn't map instance of class " + invocationHandler.type + ". Methods not found in queries file: "
-					+ temp.toString());
+			throw new BundlerValidationException("Couldn't map instance of class " + invocationHandler.type + ". Methods not found in queries file: " + temp.toString());
 
 		temp.clear();
 		temp.addAll(queries);
 		temp.removeAll(methods);
 
 		if (temp.size() > 0)
-			throw new BundlerValidationException("Couldn't map instance of class " + invocationHandler.type + ". No method found for queries: "
-					+ temp.toString());
+			throw new BundlerValidationException("Couldn't map instance of class " + invocationHandler.type + ". No method found for queries: " + temp.toString());
 	}
 
 	// ---------------------------------------------------------------------
@@ -223,11 +163,13 @@ public class Bundler {
 		private final Class<?> type;
 		private final Bundle bundle;
 		private final Map<Method, Binding> bindings;
+		private final Coercions coercions;
 
-		public BundlerInvocationHandler(Class<?> type, Bundle bundle, Map<Method, Binding> bindings) {
+		public BundlerInvocationHandler(Class<?> type, Bundle bundle, Map<Method, Binding> bindings, Coercions coercions) {
 			this.type = type;
 			this.bundle = bundle;
 			this.bindings = bindings;
+			this.coercions = coercions;
 		}
 
 		@Override
@@ -249,7 +191,7 @@ public class Bundler {
 				if (args != null && args.length > 0)
 					context.set("param", args[0]);
 
-				return execute(tx, binding, localBundle, context);
+				return execute(tx, binding, localBundle, context, coercions);
 
 			} catch (Throwable t) {
 
@@ -278,7 +220,7 @@ public class Bundler {
 	// ---------------------------------------------------------------------
 	// Database.
 
-	private static Object execute(final CurrentTransaction transaction, Binding binding, final Bundle bundle, final ParamContext context) throws Exception {
+	private static Object execute(final CurrentTransaction transaction, Binding binding, final Bundle bundle, final ParamContext context, Coercions coercions) throws Exception {
 		boolean isReturning = binding.isReturning;
 
 		// Special case: no root sql.
@@ -294,9 +236,9 @@ public class Bundler {
 
 			for (Bundle sub : bundle.subs.values()) {
 
-				Object value = execute(transaction, BindingLoader.getBinding(binding.returningType, sub.name), sub, context);
+				Object value = execute(transaction, BindingLoader.getBinding(binding.returningType, sub.name), sub, context, coercions);
 
-				BeanUtils.setProperty(object, sub.name, value);
+				Beans.setNestedProperty(object, sub.name, value, coercions);
 			}
 
 			return object;
@@ -311,7 +253,7 @@ public class Bundler {
 
 		try (ResultSet rs = isQuery ? ps.getResultSet() : ps.getGeneratedKeys()) {
 
-			Result result = new Result(rs);
+			Result result = new Result(rs, coercions);
 
 			Result.OnEach onEach = new Result.OnEach() {
 
@@ -322,9 +264,10 @@ public class Bundler {
 						for (Bundle sub : bundle.subs.values()) {
 
 							context.set("parent", object);
-							Object value = execute(transaction, BindingLoader.getBinding(type, sub.name), sub, context);
 
-							BeanUtils.setProperty(object, sub.name, value);
+							Object value = execute(transaction, BindingLoader.getBinding(type, sub.name), sub, context, coercions);
+
+							Beans.setNestedProperty(object, sub.name, value, coercions);
 						}
 
 					return object;

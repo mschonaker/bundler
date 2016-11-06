@@ -7,6 +7,8 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.io.InputStreamReader;
+import java.nio.charset.Charset;
 import java.util.List;
 
 import javax.sql.DataSource;
@@ -18,9 +20,9 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import io.github.mschonaker.bundler.Bundler;
+import io.github.mschonaker.bundler.Bundler.Transaction;
 import io.github.mschonaker.bundler.BundlerSQLException;
 import io.github.mschonaker.bundler.BundlerValidationException;
-import io.github.mschonaker.bundler.Bundler.Transaction;
 
 public class TransactionalTest {
 
@@ -38,7 +40,7 @@ public class TransactionalTest {
 
 		TransactionalTest.ds = ds;
 
-		service = Bundler.inflate(UserService.class, TransactionalTest.class.getResourceAsStream("/BasicTest.xml"));
+		service = Bundler.inflate(UserService.class, new InputStreamReader(TransactionalTest.class.getResourceAsStream("/BasicTest.xml"), Charset.forName("utf-8")), null, null);
 		try (Transaction tx = Bundler.writeTransaction(ds)) {
 			service.createTables();
 			tx.success();

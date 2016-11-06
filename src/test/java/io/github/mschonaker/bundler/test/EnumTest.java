@@ -2,6 +2,8 @@ package io.github.mschonaker.bundler.test;
 
 import static org.junit.Assert.assertEquals;
 
+import java.io.InputStreamReader;
+import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.List;
 
@@ -14,7 +16,6 @@ import org.junit.Test;
 
 import io.github.mschonaker.bundler.Bundler;
 import io.github.mschonaker.bundler.Bundler.Transaction;
-import io.github.mschonaker.bundler.support.Converters;
 
 public class EnumTest {
 
@@ -57,7 +58,7 @@ public class EnumTest {
 
 		EnumTest.ds = ds;
 
-		service = Bundler.inflate(EnumService.class, EnumTest.class.getResourceAsStream("/EnumTest.xml"));
+		service = Bundler.inflate(EnumService.class, new InputStreamReader(EnumTest.class.getResourceAsStream("/EnumTest.xml"), Charset.forName("utf-8")), null, "mysql");
 		try (Transaction tx = Bundler.writeTransaction(ds)) {
 			service.createTables();
 			tx.success();
@@ -105,8 +106,6 @@ public class EnumTest {
 	@Test
 	public void testEnumAsStrings() {
 
-		Converters.register(String.class, SimpleEnum.class, Converters.STRING_TO_ENUM);
-
 		try (Transaction tx = Bundler.writeTransaction(ds)) {
 			service.insert(SimpleEnum.A);
 			service.insert(SimpleEnum.B);
@@ -121,8 +120,6 @@ public class EnumTest {
 
 	@Test
 	public void testEnumAsInteger() {
-
-		Converters.register(Integer.class, SimpleEnum.class, Converters.INTEGER_TO_ENUM);
 
 		try (Transaction tx = Bundler.writeTransaction(ds)) {
 			service.insert(SimpleEnum.A);

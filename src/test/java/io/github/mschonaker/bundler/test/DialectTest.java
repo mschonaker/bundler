@@ -7,6 +7,8 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.Charset;
 import java.util.List;
 
 import javax.sql.DataSource;
@@ -35,7 +37,7 @@ public class DialectTest {
 
 		DialectTest.ds = ds;
 
-		service = Bundler.inflate(UserService.class, DialectTest.class.getClassLoader().getResourceAsStream("DialectTest.xml"), "mysql");
+		service = Bundler.inflate(UserService.class, new InputStreamReader(UserService.class.getClassLoader().getResourceAsStream("DialectTest.xml"), Charset.forName("utf-8")), null, "mysql");
 		try (Transaction tx = Bundler.writeTransaction(ds)) {
 			service.createTables();
 			tx.success();

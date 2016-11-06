@@ -1,6 +1,5 @@
 package io.github.mschonaker.bundler;
 
-import java.beans.PropertyDescriptor;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -9,8 +8,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.apache.commons.beanutils.ConvertUtils;
-import org.apache.commons.beanutils.PropertyUtils;
+import io.github.mschonaker.bundler.coercions.Beans;
+import io.github.mschonaker.bundler.coercions.Coercions;
 
 /**
  * A class around a {@link ResultSet} with special target-type capabilities.
@@ -30,10 +29,12 @@ class Result {
 
 	private final ResultSet rs;
 	private final String[] targetPropertyNames;
+	private final Coercions coercions;
 
-	Result(ResultSet rs) throws SQLException {
+	Result(ResultSet rs, Coercions coercions) throws SQLException {
 		this.rs = rs;
 		targetPropertyNames = obtainTargetPropertyNames(rs);
+		this.coercions = coercions;
 	}
 
 	private static String[] obtainTargetPropertyNames(ResultSet rs) throws SQLException {
@@ -65,46 +66,6 @@ class Result {
 						.collect(Collectors.joining());
 	}
 
-	private void setNestedProperty(Object bean, String name, Object value) {
-
-		try {
-			int i = name.indexOf('.');
-
-			if (i < 0) {
-
-				PropertyDescriptor descriptor = PropertyUtils.getPropertyDescriptor(bean, name);
-				if (descriptor != null)
-					descriptor.getWriteMethod().invoke(bean, ConvertUtils.convert(value, descriptor.getPropertyType()));
-				return;
-			}
-
-			// Recursion.
-			String prop = name.substring(0, i);
-
-			PropertyDescriptor descriptor = PropertyUtils.getPropertyDescriptor(bean, prop);
-
-			Object currentValue = descriptor.getReadMethod().invoke(bean);
-
-			if (currentValue == null) {
-
-				Class<?> propertyType = descriptor.getPropertyType();
-				currentValue = propertyType.newInstance();
-				descriptor.getWriteMethod().invoke(bean, ConvertUtils.convert(currentValue, descriptor.getPropertyType()));
-
-			}
-
-			setNestedProperty(currentValue, name.substring(i + 1), value);
-
-		} catch (Exception e) {
-			String targetClassName = (bean == null ? null : bean.getClass().getName());
-			String valueClassName = (value == null ? null : value.getClass().getName());
-			String propertyName = targetClassName == null ? name : targetClassName + "." + name;
-
-			throw new IllegalArgumentException("Unable to set property " + propertyName + " value of Class " + valueClassName, e);
-		}
-
-	}
-
 	public <T> List<T> asListOf(Class<T> targetClass, OnEach onEach) throws Exception {
 
 		List<T> list = new LinkedList<T>();
@@ -116,7 +77,7 @@ class Result {
 				Object value = rs.getObject(i + 1);
 
 				String property = targetPropertyNames[i];
-				setNestedProperty(object, property, value);
+				Beans.setNestedProperty(object, property, value, coercions);
 			}
 
 			list.add(onEach.onEach(targetClass, object));
@@ -132,9 +93,8 @@ class Result {
 
 		List<T> list = new LinkedList<T>();
 
-		while (rs.next()) {
-			list.add(targetClass.cast(ConvertUtils.convert(rs.getObject(1), targetClass)));
-		}
+		while (rs.next())
+			list.add(targetClass.cast(coercions.coerce(rs.getObject(1), targetClass)));
 
 		return list;
 	}
@@ -150,7 +110,7 @@ class Result {
 			Object value = rs.getObject(i + 1);
 
 			String propertyName = targetPropertyNames[i];
-			setNestedProperty(object, propertyName, value);
+			Beans.setNestedProperty(object, propertyName, value, coercions);
 		}
 
 		if (rs.next())
@@ -172,6 +132,6 @@ class Result {
 		if (rs.next())
 			throw new IllegalStateException("Query has more than one result");
 
-		return targetClass.cast(ConvertUtils.convert(value, targetClass));
+		return targetClass.cast(coercions.coerce(value, targetClass));
 	}
 }

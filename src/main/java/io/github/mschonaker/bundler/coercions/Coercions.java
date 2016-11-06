@@ -1,5 +1,9 @@
 package io.github.mschonaker.bundler.coercions;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.sql.Blob;
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -17,6 +21,18 @@ public class Coercions {
 		JRE.add(String.class, Enum.class, (o, t) -> Enum.valueOf(t, o));
 		JRE.add(Integer.class, Enum.class, (o, t) -> t.getEnumConstants()[o]);
 		JRE.add(Enum.class, Integer.class, (o, t) -> o.ordinal());
+		JRE.add(byte[].class, InputStream.class, (o, t) -> new ByteArrayInputStream(o));
+
+		JRE.add(Blob.class, InputStream.class, (o, t) -> {
+			try {
+
+				Blob blob = Blob.class.cast(o);
+				return blob.getBinaryStream();
+
+			} catch (SQLException e) {
+				throw new RuntimeException(e);
+			}
+		});
 
 	}
 
@@ -59,6 +75,11 @@ public class Coercions {
 				return false;
 			return true;
 		}
+
+		@Override
+		public String toString() {
+			return "Coerce: " + source + " -> " + target;
+		}
 	}
 
 	private final Map<Key, Coercer<?, ?>> coercers;
@@ -87,23 +108,39 @@ public class Coercions {
 		if (o == null)
 			return null;
 
-		Class<S> source = (Class<S>) o.getClass();
+		// identity.
+		if (target.isAssignableFrom(o.getClass()))
+			return target.cast(o);
 
-		while (source != null) {
+		Coercer<S, T> coercer = find((Class<S>) o.getClass(), target);
+		if (coercer != null)
+			return coercer.coerce(o, target);
 
-			if (target.isAssignableFrom(o.getClass()))
-				return target.cast(o);
+		throw new ClassCastException("Couldn't coerce from " + o.getClass() + " to " + target);
+	}
 
-			Key k = new Key(source, target.isEnum() ? Enum.class : target);
+	public <S, T> Coercer<S, T> find(Class<S> source, Class<T> target) {
+
+		Class<S> t = source;
+
+		while (t != null) {
+
+			Key k = new Key(t, target.isEnum() ? Enum.class : target);
 
 			Coercer<S, T> c = (Coercer<S, T>) coercers.get(k);
 
 			if (c != null)
-				return c.coerce(o, target);
+				return c;
 
-			source = (Class<S>) source.getSuperclass();
+			t = (Class<S>) t.getSuperclass();
 		}
 
-		throw new ClassCastException("Couldn't coerce from " + o.getClass() + " to " + target);
+		for (Class<?> i : source.getInterfaces()) {
+			Coercer<?, T> c = find(i, target);
+			if (c != null)
+				return (Coercer<S, T>) c;
+		}
+
+		return null;
 	}
 }

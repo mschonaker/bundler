@@ -35,7 +35,8 @@
 		<list>
 			select * from users
 			order by username
-			limit ${params[0]}, ${params[1]}
+			limit ${params[0]},
+			${params[1]}
 		</list>
 		<count>select count(*) from users</count>
 	</getUserPage>
@@ -98,7 +99,13 @@
 	</illegalSyntax2>
 
 	<getUserWithSubSubBean>
-		select *, 13 as "sub.sub.id", 14 as "sub.sub.id2", 15 as "sub.sub.noexiste" from users where username = ${params[0]} order by username
+		select *, 13 as "sub.sub.id", 14 as
+		"sub.sub.id2" from users where username = ${params[0]} order by
+		username
 	</getUserWithSubSubBean>
+
+	<getUserWithNonexistentProperty>
+		select 123 as "property_doesnt_exist"
+	</getUserWithNonexistentProperty>
 
 </bundler>

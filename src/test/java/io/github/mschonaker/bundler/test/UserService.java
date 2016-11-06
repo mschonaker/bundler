@@ -35,4 +35,6 @@ public interface UserService {
 	
 	User getUserWithSubSubBean(String username);
 
+	User getUserWithNonexistentProperty();
+
 }

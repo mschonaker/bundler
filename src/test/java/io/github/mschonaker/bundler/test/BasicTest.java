@@ -8,6 +8,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.util.List;
 
@@ -37,7 +38,7 @@ public class BasicTest {
 
 		BasicTest.ds = ds;
 
-		service = Bundler.inflate(UserService.class, BasicTest.class.getResourceAsStream("/BasicTest.xml"));
+		service = Bundler.inflate(UserService.class, new InputStreamReader(BasicTest.class.getResourceAsStream("/BasicTest.xml")), null, null);
 		try (Transaction tx = Bundler.writeTransaction(ds)) {
 			service.createTables();
 			tx.success();
@@ -279,7 +280,14 @@ public class BasicTest {
 			assertEquals(13, user.getSub().getSub().getId().intValue());
 
 			service.deleteUser("fake");
+		}
+	}
 
+	@Test
+	public void testNonexistentProperty() {
+
+		try (Transaction tx = Bundler.writeTransaction(ds)) {
+			service.getUserWithNonexistentProperty();
 		}
 	}
 }
