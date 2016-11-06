@@ -56,7 +56,7 @@ class BindingLoader {
 
 	private static boolean isPrimitive(Class<?> type) {
 
-		return type.isPrimitive() || type.isEnum() || Bundler.PRIMITIVE_TYPES.contains(type);
+		return type.isPrimitive() || type.isEnum() || type.getClassLoader() == null;
 
 	}
 

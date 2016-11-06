@@ -1,7 +1,6 @@
 package io.github.mschonaker.bundler;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.PrintWriter;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -15,7 +14,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -33,41 +31,6 @@ import io.github.mschonaker.bundler.loader.Bundle;
  * @author mschonaker
  */
 public class Bundler {
-
-	// ---------------------------------------------------------------------
-	// Type conversions.
-
-	/**
-	 * The types that shouldn't be treated as composite objects.
-	 */
-	// TODO make object variable
-	static final Set<Class<?>> PRIMITIVE_TYPES = new HashSet<Class<?>>();
-
-	/**
-	 * Allows to register types, beside JRE primitive types, to be treated as
-	 * primitive types instead of java beans.
-	 */
-	public static void registerPrimitiveType(Class<?> type) {
-		PRIMITIVE_TYPES.add(type);
-	}
-
-	static {
-
-		registerPrimitiveType(String.class);
-		registerPrimitiveType(Boolean.class);
-		registerPrimitiveType(Long.class);
-		registerPrimitiveType(Integer.class);
-		registerPrimitiveType(Character.class);
-		registerPrimitiveType(Double.class);
-		registerPrimitiveType(Date.class);
-		registerPrimitiveType(java.sql.Date.class);
-		registerPrimitiveType(java.sql.Timestamp.class);
-		registerPrimitiveType(InputStream.class);
-
-	}
-
-	// ---------------------------------------------------------------------
-	// Inflates.
 
 	/**
 	 * Inflates the interface.
