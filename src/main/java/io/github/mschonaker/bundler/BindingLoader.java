@@ -14,7 +14,7 @@ class BindingLoader {
 
 		Map<Method, Binding> map = new LinkedHashMap<Method, Binding>();
 
-		for (Method method : type.getDeclaredMethods()) {
+		for (Method method : type.getMethods()) {
 
 			Binding binding = getBinding(method);
 
