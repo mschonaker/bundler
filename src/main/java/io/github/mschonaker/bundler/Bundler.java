@@ -17,7 +17,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -229,63 +228,60 @@ public class Bundler {
 			return object;
 		}
 
-		PreparedStatement ps = prepare(transaction, bundle, isReturning, context);
+		try (PreparedStatement ps = transaction.connection.prepareStatement(bundle.sql, isReturning ? Statement.RETURN_GENERATED_KEYS : Statement.NO_GENERATED_KEYS)) {
 
-		boolean isQuery = ps.execute();
+			// Parameters.
+			if (bundle.expressions != null) {
+				int i = 1;
+				for (String parameterExpression : bundle.expressions) {
+					ps.setObject(i, context.get(parameterExpression));
+					i++;
+				}
+			}
 
-		if (!isReturning)
-			return null;
+			// Execution.
+			boolean isQuery = ps.execute();
 
-		try (ResultSet rs = isQuery ? ps.getResultSet() : ps.getGeneratedKeys()) {
+			// Results.
+			if (!isReturning)
+				return null;
 
-			Result result = new Result(rs, coercions);
+			try (ResultSet rs = isQuery ? ps.getResultSet() : ps.getGeneratedKeys()) {
 
-			Result.OnEach onEach = new Result.OnEach() {
+				Result result = new Result(rs, coercions);
 
-				@Override
-				public <T> T onEach(Class<T> type, T object) throws Exception {
+				Result.OnEach onEach = new Result.OnEach() {
 
-					if (bundle.children != null)
-						for (Bundle sub : bundle.children.values()) {
+					@Override
+					public <T> T onEach(Class<T> type, T object) throws Exception {
 
-							context.set("parent", object);
+						if (bundle.children != null)
+							for (Bundle sub : bundle.children.values()) {
 
-							Object value = execute(transaction, BindingLoader.getBinding(type, sub.name), sub, context, coercions);
+								context.set("parent", object);
 
-							Beans.setNestedProperty(object, sub.name, value, coercions);
-						}
+								Object value = execute(transaction, BindingLoader.getBinding(type, sub.name), sub, context, coercions);
 
-					return object;
+								Beans.setNestedProperty(object, sub.name, value, coercions);
+							}
+
+						return object;
+					}
+
+				};
+
+				if (!binding.returnTypeIsList) {
+					if (binding.returnTypeIsPrimitive)
+						return result.asScalarOf(binding.returningType);
+					return result.asOneOf(binding.returningType, onEach);
 				}
 
-			};
-
-			if (!binding.returnTypeIsList) {
 				if (binding.returnTypeIsPrimitive)
-					return result.asScalarOf(binding.returningType);
-				return result.asOneOf(binding.returningType, onEach);
-			}
+					return result.asScalarListOf(binding.returningType);
 
-			if (binding.returnTypeIsPrimitive)
-				return result.asScalarListOf(binding.returningType);
-
-			return result.asListOf(binding.returningType, onEach);
-		}
-	}
-
-	private static PreparedStatement prepare(CurrentTransaction transaction, Bundle bundle, boolean isReturning, ParamContext context) throws SQLException {
-
-		PreparedStatement ps = transaction.prepareStatement(bundle, isReturning ? Statement.RETURN_GENERATED_KEYS : Statement.NO_GENERATED_KEYS);
-
-		if (bundle.expressions != null) {
-			int i = 1;
-			for (String parameterExpression : bundle.expressions) {
-				ps.setObject(i, context.get(parameterExpression));
-				i++;
+				return result.asListOf(binding.returningType, onEach);
 			}
 		}
-
-		return ps;
 	}
 
 	// ---------------------------------------------------------------------
@@ -358,20 +354,10 @@ public class Bundler {
 		Connection connection;
 		boolean success = false;
 		public CurrentTransaction previous;
-		Map<Bundle, PreparedStatement> cache = new IdentityHashMap<>();
 
 		@Override
 		public void success() {
 			success = true;
-		}
-
-		private PreparedStatement prepareStatement(Bundle bundle, int flags) throws SQLException {
-			PreparedStatement ps = cache.get(bundle);
-
-			if (ps == null)
-				cache.put(bundle, ps = connection.prepareStatement(bundle.sql, flags));
-
-			return ps;
 		}
 
 		@Override
@@ -387,11 +373,6 @@ public class Bundler {
 				throw new BundlerSQLException(e);
 			} finally {
 				try {
-
-					for (PreparedStatement ps : cache.values())
-						ps.close();
-
-					cache.clear();
 
 					connection.close();
 
