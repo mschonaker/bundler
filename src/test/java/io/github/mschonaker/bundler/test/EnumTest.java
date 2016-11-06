@@ -3,7 +3,6 @@ package io.github.mschonaker.bundler.test;
 import static org.junit.Assert.assertEquals;
 
 import java.util.Arrays;
-import java.util.List;
 
 import javax.sql.DataSource;
 
@@ -14,51 +13,28 @@ import org.junit.Test;
 
 import io.github.mschonaker.bundler.Bundler;
 import io.github.mschonaker.bundler.Bundler.Transaction;
-import io.github.mschonaker.bundler.Config;
+import io.github.mschonaker.bundler.test.daos.enums.EnumService;
+import io.github.mschonaker.bundler.test.daos.enums.SimpleEnum;
 
 public class EnumTest {
 
 	private static DataSource ds;
-
-	public static enum SimpleEnum {
-
-		A, B, C;
-
-	}
-
-	private static interface EnumService {
-
-		void createTables();
-
-		void empty();
-
-		void insert(SimpleEnum e);
-
-		List<String> listStrings();
-
-		List<Integer> listIntegers();
-
-		List<SimpleEnum> listEnumsAsStrings();
-
-		List<SimpleEnum> listEnumsAsIntegers();
-
-	}
 
 	private static EnumService service;
 
 	@BeforeClass
 	public static void beforeClass() throws Exception {
 
-		JdbcDataSource ds = new JdbcDataSource();
+		JdbcDataSource dataSource = new JdbcDataSource();
 
-		ds.setURL("jdbc:h2:mem:sampledb" + System.nanoTime() + ";DB_CLOSE_DELAY=-1;MODE=MySQL");
-		ds.setUser("sa");
-		ds.setPassword("");
+		dataSource.setURL("jdbc:h2:mem:sampledb" + System.nanoTime() + ";DB_CLOSE_DELAY=-1;MODE=MySQL");
+		dataSource.setUser("sa");
+		dataSource.setPassword("");
 
-		EnumTest.ds = ds;
+		ds = dataSource;
 
-		service = Bundler.inflate(EnumService.class, new Config().loadResource("EnumTest.xml"));
-		try (Transaction tx = Bundler.writeTransaction(ds)) {
+		service = Bundler.inflate(EnumService.class);
+		try (Transaction tx = Bundler.writeTransaction(dataSource)) {
 			service.createTables();
 			tx.success();
 		}

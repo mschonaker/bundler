@@ -1,4 +1,4 @@
-package io.github.mschonaker.bundler.test;
+package io.github.mschonaker.bundler.test.daos.user;
 
 import java.util.List;
 

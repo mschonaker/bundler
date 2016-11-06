@@ -3,6 +3,7 @@ package io.github.mschonaker.bundler;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -60,7 +61,11 @@ public class Config {
 	}
 
 	public Config loadResource(Class<?> type) throws IOException {
-		load(type.getResourceAsStream(type.getSimpleName() + "-bundler.xml"));
+		String name = type.getName().replace('.', '/') + "-bundler.xml";
+		InputStream resource = type.getClassLoader().getResourceAsStream(name);
+		if (resource == null)
+			throw new FileNotFoundException("Unble to locate resource " + name);
+		load(resource);
 		return this;
 	}
 

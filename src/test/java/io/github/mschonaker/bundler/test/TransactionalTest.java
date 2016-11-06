@@ -21,7 +21,8 @@ import io.github.mschonaker.bundler.Bundler;
 import io.github.mschonaker.bundler.Bundler.Transaction;
 import io.github.mschonaker.bundler.BundlerSQLException;
 import io.github.mschonaker.bundler.BundlerValidationException;
-import io.github.mschonaker.bundler.Config;
+import io.github.mschonaker.bundler.test.daos.user.User;
+import io.github.mschonaker.bundler.test.daos.user.UserService;
 
 public class TransactionalTest {
 
@@ -39,7 +40,7 @@ public class TransactionalTest {
 
 		TransactionalTest.ds = ds;
 
-		service = Bundler.inflate(UserService.class, new Config().loadResource("BasicTest.xml"));
+		service = Bundler.inflate(UserService.class);
 		try (Transaction tx = Bundler.writeTransaction(ds)) {
 			service.createTables();
 			tx.success();

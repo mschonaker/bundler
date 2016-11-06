@@ -20,7 +20,9 @@ import org.junit.Test;
 
 import io.github.mschonaker.bundler.Bundler;
 import io.github.mschonaker.bundler.Bundler.Transaction;
-import io.github.mschonaker.bundler.Config;
+import io.github.mschonaker.bundler.test.daos.user.User;
+import io.github.mschonaker.bundler.test.daos.user.UserPage;
+import io.github.mschonaker.bundler.test.daos.user.UserService;
 
 public class BasicTest {
 
@@ -30,21 +32,21 @@ public class BasicTest {
 	@BeforeClass
 	public static void beforeClass() throws Exception {
 
-		JdbcDataSource ds = new JdbcDataSource();
+		JdbcDataSource dataSource = new JdbcDataSource();
 
-		ds.setURL("jdbc:h2:mem:sampledb" + System.nanoTime() + ";DB_CLOSE_DELAY=-1;MODE=MySQL");
-		ds.setUser("sa");
-		ds.setPassword("");
+		dataSource.setURL("jdbc:h2:mem:sampledb" + System.nanoTime() + ";DB_CLOSE_DELAY=-1;MODE=MySQL");
+		dataSource.setUser("sa");
+		dataSource.setPassword("");
 
-		BasicTest.ds = ds;
+		ds = dataSource;
 
-		service = Bundler.inflate(UserService.class, new Config().loadResource("BasicTest.xml"));
-		try (Transaction tx = Bundler.writeTransaction(ds)) {
+		service = Bundler.inflate(UserService.class);
+		try (Transaction tx = Bundler.writeTransaction(dataSource)) {
 			service.createTables();
 			tx.success();
 		}
 
-		Bundler.dumpDB(ds, new PrintWriter(System.out), null);
+		Bundler.dumpDB(dataSource, new PrintWriter(System.out), null);
 	}
 
 	@Test

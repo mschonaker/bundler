@@ -1,4 +1,4 @@
-package io.github.mschonaker.bundler.test;
+package io.github.mschonaker.bundler.test.daos.user;
 
 import java.sql.SQLException;
 import java.util.List;
