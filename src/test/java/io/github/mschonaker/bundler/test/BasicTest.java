@@ -8,7 +8,6 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.util.List;
 
@@ -21,6 +20,7 @@ import org.junit.Test;
 
 import io.github.mschonaker.bundler.Bundler;
 import io.github.mschonaker.bundler.Bundler.Transaction;
+import io.github.mschonaker.bundler.Config;
 
 public class BasicTest {
 
@@ -38,7 +38,7 @@ public class BasicTest {
 
 		BasicTest.ds = ds;
 
-		service = Bundler.inflate(UserService.class, new InputStreamReader(BasicTest.class.getResourceAsStream("/BasicTest.xml")), null, null);
+		service = Bundler.inflate(UserService.class, new Config().loadResource("BasicTest.xml"));
 		try (Transaction tx = Bundler.writeTransaction(ds)) {
 			service.createTables();
 			tx.success();

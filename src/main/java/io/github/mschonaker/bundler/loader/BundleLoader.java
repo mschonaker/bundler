@@ -1,9 +1,10 @@
-package io.github.mschonaker.bundler;
+package io.github.mschonaker.bundler.loader;
 
 import java.io.Reader;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Stack;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -16,21 +17,20 @@ import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
-class BundleLoader {
+public class BundleLoader {
 
 	private static class BundleHandler extends DefaultHandler {
 
-		private final String dialect;
 		private final StringBuilder text = new StringBuilder();
 		private final Stack<Bundle> stack = new Stack<Bundle>();
+		private final Map<String, Bundle> bundles;
 
-		public BundleHandler(String dialect) {
-			this.dialect = dialect;
+		public BundleHandler(Map<String, Bundle> bundles) {
+			this.bundles = bundles;
 		}
 
 		@Override
 		public void characters(char[] ch, int start, int length) throws SAXException {
-
 			text.append(ch, start, length);
 		}
 
@@ -38,34 +38,25 @@ class BundleLoader {
 		public void startElement(String uri, String localName, String qName, Attributes attributes) throws SAXException {
 
 			Bundle bundle = new Bundle();
-			bundle.dialect = attributes.getValue("dialect");
 			bundle.name = qName;
 
-			if (stack.size() > 0) {
+			if (stack.isEmpty()) {
+
+				if (!"bundler".equals(qName))
+					throw new SAXException("Expected \"bundler\" element, got \"" + qName + "\"");
+
+				bundle.children = bundles;
+
+			} else {
 
 				Bundle parent = stack.peek();
 
 				flushText(parent);
 
-				if (parent.subs == null)
-					parent.subs = new LinkedHashMap<String, Bundle>();
+				if (parent.children == null)
+					parent.children = new LinkedHashMap<String, Bundle>();
+				parent.children.put(bundle.name, bundle);
 
-				if (bundle.dialect == null || bundle.dialect.equals(dialect)) {
-
-					Bundle has = parent.subs.get(bundle.name);
-
-					if (has == null)
-						parent.subs.put(bundle.name, bundle);
-					else {
-
-						if (bundle.dialect == null && has.dialect == null || bundle.dialect != null && has.dialect != null)
-							throw new IllegalArgumentException("Repeated config " + bundle.name);
-
-						if (dialect != null && bundle.dialect != null && has.dialect == null)
-							parent.subs.put(bundle.name, bundle);
-
-					}
-				}
 			}
 
 			stack.push(bundle);
@@ -101,12 +92,6 @@ class BundleLoader {
 
 			text.delete(0, text.length());
 		}
-
-		public Bundle getRootBundle() {
-			assert stack.size() == 1 : "Invalid parsing state";
-			return stack.pop();
-		}
-
 	}
 
 	private static final Pattern EXPRESSION_PATTERN = Pattern.compile("(\\$\\{([^\\}]*)\\})");
@@ -142,15 +127,13 @@ class BundleLoader {
 		config.expressions = expressions;
 	}
 
-	public static Bundle load(Reader reader, String dialect) throws Exception {
+	public static void load(Map<String, Bundle> bundles, Reader reader) throws Exception {
 
 		SAXParserFactory factory = SAXParserFactory.newInstance();
 		SAXParser parser = factory.newSAXParser();
 
-		BundleHandler handler = new BundleHandler(dialect);
+		BundleHandler handler = new BundleHandler(bundles);
 
 		parser.parse(new InputSource(reader), handler);
-
-		return handler.getRootBundle();
 	}
 }

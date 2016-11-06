@@ -1,10 +1,8 @@
 package io.github.mschonaker.bundler;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
-import java.io.Reader;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -21,12 +19,14 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import javax.sql.DataSource;
 
 import io.github.mschonaker.bundler.coercions.Beans;
 import io.github.mschonaker.bundler.coercions.Coercions;
+import io.github.mschonaker.bundler.loader.Bundle;
 
 /**
  * A small API for Object-Relational mapping.
@@ -73,46 +73,31 @@ public class Bundler {
 	/**
 	 * Inflates the interface.
 	 */
-	public static <T> T inflate(Class<T> type, Reader reader, Coercions coercions, String dialect) throws IOException {
+	public static <T> T inflate(Class<T> type) throws IOException {
+		Config config = new Config();
+		config.loadResource(type);
+		return inflate(type, config);
+	}
 
-		if (type == null)
-			throw new IllegalArgumentException("type");
+	/**
+	 * Inflates the interface.
+	 */
+	public static <T> T inflate(Class<T> type, Config config) throws IOException {
 
-		if (reader == null)
-			throw new IllegalArgumentException("reader");
+		Objects.requireNonNull(type, "type is required");
+		Objects.requireNonNull(config, "config is required");
 
-		if (coercions == null)
-			coercions = Coercions.JRE;
+		Coercions coercions = config.coercions();
 
-		// 1. Obtain the queries.
-
-		Bundle rootBundle;
-		try (Reader br = new BufferedReader(reader)) {
-			rootBundle = BundleLoader.load(br, dialect);
-		} catch (Exception e) {
-			throw new IOException(e);
-		}
-
-		// 2. Instrospect target class.
-
-		validate(type);
+		Bundle root = new Bundle();
+		root.children = config.bundles();
 
 		Map<Method, Binding> bindings = BindingLoader.load(type);
-
-		// 3. Return the proxy.
-
-		return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type }, new BundlerInvocationHandler(type, rootBundle, bindings, coercions)));
+		return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type }, new BundlerInvocationHandler(type, root, bindings, coercions)));
 	}
 
 	// ---------------------------------------------------------------------
 	// Validations.
-
-	private static void validate(Class<?> type) {
-
-		if (!type.isInterface())
-			throw new IllegalArgumentException("Invalid interface " + type.getClass().getName());
-
-	}
 
 	/**
 	 * Validates an already inflated object's bindings.
@@ -138,7 +123,7 @@ public class Bundler {
 			methods.add(binding.bundle);
 
 		// The names of the queries in the file.
-		Set<String> queries = bundle.subs != null ? bundle.subs.keySet() : Collections.<String>emptySet();
+		Set<String> queries = bundle.children != null ? bundle.children.keySet() : Collections.<String>emptySet();
 
 		Set<String> temp = new HashSet<String>();
 		temp.addAll(methods);
@@ -177,7 +162,7 @@ public class Bundler {
 
 			Binding binding = bindings.get(method);
 
-			Bundle localBundle = bundle.subs.get(binding.bundle);
+			Bundle localBundle = bundle.children.get(binding.bundle);
 
 			if (localBundle == null)
 				throw new IllegalStateException("Bundle not found not found: " + binding.bundle);
@@ -226,7 +211,7 @@ public class Bundler {
 		// Special case: no root sql.
 		if (bundle.sql == null) {
 
-			if (bundle.subs == null)
+			if (bundle.children == null)
 				return null;
 
 			if (binding.returnTypeIsList || binding.returnTypeIsPrimitive)
@@ -234,7 +219,7 @@ public class Bundler {
 
 			Object object = binding.returningType.newInstance();
 
-			for (Bundle sub : bundle.subs.values()) {
+			for (Bundle sub : bundle.children.values()) {
 
 				Object value = execute(transaction, BindingLoader.getBinding(binding.returningType, sub.name), sub, context, coercions);
 
@@ -260,8 +245,8 @@ public class Bundler {
 				@Override
 				public <T> T onEach(Class<T> type, T object) throws Exception {
 
-					if (bundle.subs != null)
-						for (Bundle sub : bundle.subs.values()) {
+					if (bundle.children != null)
+						for (Bundle sub : bundle.children.values()) {
 
 							context.set("parent", object);
 
