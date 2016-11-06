@@ -3,6 +3,11 @@ package io.github.mschonaker.bundler.loader;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * A very simple class containing bundle configuration.
+ * 
+ * @author mschonaker
+ */
 public class Bundle {
 
 	public String name;

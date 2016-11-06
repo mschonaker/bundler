@@ -50,13 +50,10 @@ public class BundleLoader {
 			} else {
 
 				Bundle parent = stack.peek();
-
 				flushText(parent);
-
 				if (parent.children == null)
 					parent.children = new LinkedHashMap<String, Bundle>();
 				parent.children.put(bundle.name, bundle);
-
 			}
 
 			stack.push(bundle);
@@ -66,28 +63,24 @@ public class BundleLoader {
 		public void endElement(String uri, String localName, String qName) throws SAXException {
 
 			if (stack.size() > 1) {
-
-				Bundle config = stack.pop();
-
-				flushText(config);
-
-				extractExpressions(config);
-
+				Bundle bundle = stack.pop();
+				flushText(bundle);
+				extractExpressions(bundle);
 			}
 
 			text.delete(0, text.length());
 		}
 
-		private void flushText(Bundle config) {
+		private void flushText(Bundle bundle) {
 
 			String t = text.toString().trim();
 
 			if (!t.isEmpty()) {
 				StringBuilder sb = new StringBuilder();
-				if (config.sql != null)
-					sb.append(config.sql);
+				if (bundle.sql != null)
+					sb.append(bundle.sql);
 				sb.append(text.toString());
-				config.sql = sb.toString();
+				bundle.sql = sb.toString();
 			}
 
 			text.delete(0, text.length());
@@ -96,35 +89,38 @@ public class BundleLoader {
 
 	private static final Pattern EXPRESSION_PATTERN = Pattern.compile("(\\$\\{([^\\}]*)\\})");
 
-	private static void extractExpressions(Bundle config) {
+	private static void extractExpressions(Bundle bundle) {
 
-		if (config.sql == null)
+		if (bundle.sql == null)
 			return;
 
 		List<String> expressions = new LinkedList<String>();
-
-		Matcher matcher = EXPRESSION_PATTERN.matcher(config.sql);
-
 		StringBuilder sb = new StringBuilder();
 
 		int replacedStart = 0;
 
+		Matcher matcher = EXPRESSION_PATTERN.matcher(bundle.sql);
 		while (matcher.find()) {
 
 			int start = matcher.start();
 			int end = matcher.end();
 
-			sb.append(config.sql.substring(replacedStart, start));
+			sb.append(bundle.sql.substring(replacedStart, start));
 			sb.append('?');
 			replacedStart = end;
 
 			expressions.add(matcher.group(2));
 		}
 
-		sb.append(config.sql.subSequence(replacedStart, config.sql.length()));
+		sb.append(bundle.sql.subSequence(replacedStart, bundle.sql.length()));
 
-		config.sql = sb.toString();
-		config.expressions = expressions;
+		String sql = sb.toString().trim();
+
+		if (!sql.isEmpty())
+			bundle.sql = sql;
+
+		if (!expressions.isEmpty())
+			bundle.expressions = expressions;
 	}
 
 	public static void load(Map<String, Bundle> bundles, Reader reader) throws Exception {

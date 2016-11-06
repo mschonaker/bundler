@@ -277,10 +277,12 @@ public class Bundler {
 
 		PreparedStatement ps = transaction.prepareStatement(bundle, isReturning ? Statement.RETURN_GENERATED_KEYS : Statement.NO_GENERATED_KEYS);
 
-		int i = 1;
-		for (String parameterExpression : bundle.expressions) {
-			ps.setObject(i, context.get(parameterExpression));
-			i++;
+		if (bundle.expressions != null) {
+			int i = 1;
+			for (String parameterExpression : bundle.expressions) {
+				ps.setObject(i, context.get(parameterExpression));
+				i++;
+			}
 		}
 
 		return ps;
