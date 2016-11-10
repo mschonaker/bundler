@@ -13,22 +13,19 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
-import io.github.mschonaker.bundler.coercions.Coercions;
 import io.github.mschonaker.bundler.loader.Bundle;
 import io.github.mschonaker.bundler.loader.BundleLoader;
+import io.github.mschonaker.bundler.utils.Coercions;
 
 public class Config {
 
+	private boolean lenient = true;
 	private Coercions coercions = Coercions.JRE;
 	private Map<String, Bundle> bundles = new HashMap<>();
 
 	public Config coercions(Coercions coercions) {
 		this.coercions = coercions;
 		return this;
-	}
-
-	Coercions coercions() {
-		return coercions;
 	}
 
 	public Config load(Reader reader) throws IOException {
@@ -78,4 +75,11 @@ public class Config {
 		return bundles;
 	}
 
+	Coercions coercions() {
+		return coercions;
+	}
+
+	boolean lenient() {
+		return lenient;
+	}
 }

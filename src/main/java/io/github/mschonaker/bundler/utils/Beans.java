@@ -1,23 +1,20 @@
-package io.github.mschonaker.bundler.coercions;
+package io.github.mschonaker.bundler.utils;
 
-import java.beans.IntrospectionException;
-import java.beans.Introspector;
 import java.beans.PropertyDescriptor;
-import java.util.Arrays;
 
 public final class Beans {
 
 	private Beans() {
 	}
 
-	public static void setNestedProperty(Object bean, String name, Object value, Coercions coercions) {
+	public static void setNestedProperty(Object bean, String name, Object value, boolean lenient, Coercions coercions) {
 
 		try {
 			int i = name.indexOf('.');
 
 			if (i < 0) {
 
-				PropertyDescriptor descriptor = getPropertyDescriptor(bean, name);
+				PropertyDescriptor descriptor = new PropertyDescriptor(name, bean.getClass());
 				if (descriptor != null)
 					descriptor.getWriteMethod().invoke(bean, coercions.coerce(value, descriptor.getPropertyType()));
 				return;
@@ -26,7 +23,7 @@ public final class Beans {
 			// Recursion.
 			String prop = name.substring(0, i);
 
-			PropertyDescriptor descriptor = getPropertyDescriptor(bean, prop);
+			PropertyDescriptor descriptor = new PropertyDescriptor(prop, bean.getClass());
 
 			Object currentValue = descriptor.getReadMethod().invoke(bean);
 
@@ -38,9 +35,12 @@ public final class Beans {
 
 			}
 
-			setNestedProperty(currentValue, name.substring(i + 1), value, coercions);
+			setNestedProperty(currentValue, name.substring(i + 1), value, lenient, coercions);
 
 		} catch (Exception e) {
+
+			if (lenient)
+				return;
 
 			String targetClassName = (bean == null ? null : bean.getClass().getName());
 			String valueClassName = (value == null ? null : value.getClass().getName());
@@ -49,14 +49,5 @@ public final class Beans {
 			throw new IllegalArgumentException("Unable to set property " + propertyName + " value of Class " + valueClassName, e);
 		}
 
-	}
-
-	private static PropertyDescriptor getPropertyDescriptor(Object bean, String name) throws IntrospectionException {
-		return Arrays.stream(Introspector.getBeanInfo(bean.getClass()).getPropertyDescriptors())//
-				.filter(d -> d.getName().equals(name))//
-				.findFirst()//
-				// .orElseThrow(() -> new IntrospectionException("Unknown
-				// property " + name + " for class " + bean.getClass()));
-				.orElse(null);
 	}
 }

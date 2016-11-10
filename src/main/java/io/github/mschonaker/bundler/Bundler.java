@@ -1,5 +1,6 @@
 package io.github.mschonaker.bundler;
 
+import java.beans.PropertyDescriptor;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.reflect.InvocationHandler;
@@ -12,18 +13,18 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.Collection;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.sql.DataSource;
 
-import io.github.mschonaker.bundler.coercions.Beans;
-import io.github.mschonaker.bundler.coercions.Coercions;
 import io.github.mschonaker.bundler.loader.Bundle;
+import io.github.mschonaker.bundler.utils.Beans;
+import io.github.mschonaker.bundler.utils.Methods;
 
 /**
  * A small API for Object-Relational mapping.
@@ -49,13 +50,10 @@ public class Bundler {
 		Objects.requireNonNull(type, "type is required");
 		Objects.requireNonNull(config, "config is required");
 
-		Coercions coercions = config.coercions();
-
 		Bundle root = new Bundle();
 		root.children = config.bundles();
 
-		Map<Method, Binding> bindings = BindingLoader.load(type);
-		return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type }, new BundlerInvocationHandler(type, root, bindings, coercions)));
+		return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type }, new BundlerInvocationHandler(type, root, config)));
 	}
 
 	// ---------------------------------------------------------------------
@@ -77,12 +75,9 @@ public class Bundler {
 
 		BundlerInvocationHandler invocationHandler = (BundlerInvocationHandler) handler;
 		Bundle bundle = invocationHandler.bundle;
-		Collection<Binding> bindings = invocationHandler.bindings.values();
 
 		// The names of the methods of the interface.
-		Set<String> methods = new HashSet<String>();
-		for (Binding binding : bindings)
-			methods.add(binding.bundle);
+		Set<String> methods = Arrays.stream(invocationHandler.type.getMethods()).map(Method::getName).collect(Collectors.toSet());
 
 		// The names of the queries in the file.
 		Set<String> queries = bundle.children != null ? bundle.children.keySet() : Collections.<String>emptySet();
@@ -105,44 +100,40 @@ public class Bundler {
 	// ---------------------------------------------------------------------
 	// Proxy methods.
 
-	static class BundlerInvocationHandler implements InvocationHandler {
+	private static class BundlerInvocationHandler implements InvocationHandler {
 
 		private final Class<?> type;
 		private final Bundle bundle;
-		private final Map<Method, Binding> bindings;
-		private final Coercions coercions;
+		private final Config config;
 
-		public BundlerInvocationHandler(Class<?> type, Bundle bundle, Map<Method, Binding> bindings, Coercions coercions) {
+		public BundlerInvocationHandler(Class<?> type, Bundle bundle, Config config) {
 			this.type = type;
 			this.bundle = bundle;
-			this.bindings = bindings;
-			this.coercions = coercions;
+			this.config = config;
 		}
 
 		@Override
 		public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
 
-			Binding binding = bindings.get(method);
-
-			Bundle localBundle = bundle.children.get(binding.bundle);
+			Bundle localBundle = bundle.children.get(method.getName());
 
 			if (localBundle == null)
-				throw new IllegalStateException("Bundle not found not found: " + binding.bundle);
+				throw new IllegalStateException("Bundle not for method: " + method);
 
 			try {
 
 				CurrentTransaction tx = locateTransaction();
 
-				ParamContext context = new ParamContext();
-				context.set("params", args);
+				ParamContext params = new ParamContext();
+				params.set("params", args);
 				if (args != null && args.length > 0)
-					context.set("param", args[0]);
+					params.set("param", args[0]);
 
-				return execute(tx, binding, localBundle, context, coercions);
+				return execute(tx, localBundle, config, method, params);
 
 			} catch (Throwable t) {
 
-				if (isDeclared(t, method))
+				if (Methods.doesThrow(method, t))
 					throw t;
 
 				throw new BundlerSQLException(t);
@@ -152,23 +143,9 @@ public class Bundler {
 	}
 
 	// ---------------------------------------------------------------------
-	// Exceptions.
-
-	private static boolean isDeclared(Throwable t, Method method) {
-
-		for (Class<?> declared : method.getExceptionTypes()) {
-			if (declared.isAssignableFrom(t.getClass()))
-				return true;
-		}
-
-		return false;
-	}
-
-	// ---------------------------------------------------------------------
 	// Database.
 
-	private static Object execute(final CurrentTransaction transaction, Binding binding, final Bundle bundle, final ParamContext context, Coercions coercions) throws Exception {
-		boolean isReturning = binding.isReturning;
+	private static Object execute(CurrentTransaction transaction, Bundle bundle, Config config, Method method, ParamContext params) throws Exception {
 
 		// Special case: no root sql.
 		if (bundle.sql == null) {
@@ -176,28 +153,31 @@ public class Bundler {
 			if (bundle.children == null)
 				return null;
 
-			if (binding.returnTypeIsList || binding.returnTypeIsPrimitive)
+			if (Methods.returnsList(method) || Methods.returnsPrimitive(method))
 				throw new IllegalArgumentException();
 
-			Object object = binding.returningType.newInstance();
+			Object object = method.getReturnType().newInstance();
 
 			for (Bundle sub : bundle.children.values()) {
 
-				Object value = execute(transaction, BindingLoader.getBinding(binding.returningType, sub.name), sub, context, coercions);
+				Object value = execute(transaction, sub, config, new PropertyDescriptor(sub.name, method.getReturnType()).getReadMethod(), params);
 
-				Beans.setNestedProperty(object, sub.name, value, coercions);
+				Beans.setNestedProperty(object, sub.name, value, config.lenient(), config.coercions());
 			}
 
 			return object;
 		}
 
-		try (PreparedStatement ps = transaction.connection.prepareStatement(bundle.sql, isReturning ? Statement.RETURN_GENERATED_KEYS : Statement.NO_GENERATED_KEYS)) {
+		boolean isReturning = !Methods.returnsVoid(method);
+
+		try (PreparedStatement ps = transaction.connection.prepareStatement(bundle.sql, //
+				isReturning ? Statement.RETURN_GENERATED_KEYS : Statement.NO_GENERATED_KEYS)) {
 
 			// Parameters.
 			if (bundle.expressions != null) {
 				int i = 1;
 				for (String parameterExpression : bundle.expressions) {
-					ps.setObject(i, context.get(parameterExpression));
+					ps.setObject(i, params.get(parameterExpression));
 					i++;
 				}
 			}
@@ -211,7 +191,7 @@ public class Bundler {
 
 			try (ResultSet rs = isQuery ? ps.getResultSet() : ps.getGeneratedKeys()) {
 
-				Result result = new Result(rs, coercions);
+				Result result = new Result(rs, config);
 
 				Result.OnEach onEach = new Result.OnEach() {
 
@@ -221,11 +201,11 @@ public class Bundler {
 						if (bundle.children != null)
 							for (Bundle sub : bundle.children.values()) {
 
-								context.set("parent", object);
+								params.set("parent", object);
 
-								Object value = execute(transaction, BindingLoader.getBinding(type, sub.name), sub, context, coercions);
+								Object value = execute(transaction, sub, config, new PropertyDescriptor(sub.name, type).getReadMethod(), params);
 
-								Beans.setNestedProperty(object, sub.name, value, coercions);
+								Beans.setNestedProperty(object, sub.name, value, config.lenient(), config.coercions());
 							}
 
 						return object;
@@ -233,16 +213,7 @@ public class Bundler {
 
 				};
 
-				if (!binding.returnTypeIsList) {
-					if (binding.returnTypeIsPrimitive)
-						return result.asScalarOf(binding.returningType);
-					return result.asOneOf(binding.returningType, onEach);
-				}
-
-				if (binding.returnTypeIsPrimitive)
-					return result.asScalarListOf(binding.returningType);
-
-				return result.asListOf(binding.returningType, onEach);
+				return result.toReturnTypeOf(method, onEach);
 			}
 		}
 	}

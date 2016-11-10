@@ -1,5 +1,6 @@
 package io.github.mschonaker.bundler;
 
+import java.lang.reflect.Method;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -8,8 +9,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import io.github.mschonaker.bundler.coercions.Beans;
-import io.github.mschonaker.bundler.coercions.Coercions;
+import io.github.mschonaker.bundler.utils.Beans;
+import io.github.mschonaker.bundler.utils.Methods;
 
 /**
  * A class around a {@link ResultSet} with special target-type capabilities.
@@ -29,12 +30,12 @@ class Result {
 
 	private final ResultSet rs;
 	private final String[] targetPropertyNames;
-	private final Coercions coercions;
+	private final Config config;
 
-	Result(ResultSet rs, Coercions coercions) throws SQLException {
+	Result(ResultSet rs, Config config) throws SQLException {
 		this.rs = rs;
 		targetPropertyNames = obtainTargetPropertyNames(rs);
-		this.coercions = coercions;
+		this.config = config;
 	}
 
 	private static String[] obtainTargetPropertyNames(ResultSet rs) throws SQLException {
@@ -66,7 +67,7 @@ class Result {
 						.collect(Collectors.joining());
 	}
 
-	public <T> List<T> asListOf(Class<T> targetClass, OnEach onEach) throws Exception {
+	private <T> List<T> asListOf(Class<T> targetClass, OnEach onEach) throws Exception {
 
 		List<T> list = new LinkedList<T>();
 		while (rs.next()) {
@@ -77,7 +78,7 @@ class Result {
 				Object value = rs.getObject(i + 1);
 
 				String property = targetPropertyNames[i];
-				Beans.setNestedProperty(object, property, value, coercions);
+				Beans.setNestedProperty(object, property, value, config.lenient(), config.coercions());
 			}
 
 			list.add(onEach.onEach(targetClass, object));
@@ -86,7 +87,7 @@ class Result {
 		return list;
 	}
 
-	public <T> List<T> asScalarListOf(Class<T> targetClass) throws Exception {
+	private <T> List<T> asScalarListOf(Class<T> targetClass) throws Exception {
 
 		if (targetPropertyNames.length != 1)
 			throw new IllegalArgumentException("Couldn't unbox. Have more than one column: " + targetPropertyNames.length);
@@ -94,12 +95,12 @@ class Result {
 		List<T> list = new LinkedList<T>();
 
 		while (rs.next())
-			list.add(targetClass.cast(coercions.coerce(rs.getObject(1), targetClass)));
+			list.add(targetClass.cast(config.coercions().coerce(rs.getObject(1), targetClass)));
 
 		return list;
 	}
 
-	public <T> T asOneOf(Class<T> targetClass, OnEach onEach) throws Exception {
+	private <T> T asOneOf(Class<T> targetClass, OnEach onEach) throws Exception {
 
 		if (!rs.next())
 			return null;
@@ -110,7 +111,7 @@ class Result {
 			Object value = rs.getObject(i + 1);
 
 			String propertyName = targetPropertyNames[i];
-			Beans.setNestedProperty(object, propertyName, value, coercions);
+			Beans.setNestedProperty(object, propertyName, value, config.lenient(), config.coercions());
 		}
 
 		if (rs.next())
@@ -119,7 +120,7 @@ class Result {
 		return onEach.onEach(targetClass, object);
 	}
 
-	public <T> T asScalarOf(Class<T> targetClass) throws Exception {
+	private <T> T asScalarOf(Class<T> targetClass) throws Exception {
 
 		if (targetPropertyNames.length != 1)
 			throw new IllegalArgumentException("Couldn't unbox. Have more than one column: " + targetPropertyNames.length);
@@ -132,6 +133,22 @@ class Result {
 		if (rs.next())
 			throw new IllegalStateException("Query has more than one result");
 
-		return targetClass.cast(coercions.coerce(value, targetClass));
+		return targetClass.cast(config.coercions().coerce(value, targetClass));
+	}
+
+	public Object toReturnTypeOf(Method method, OnEach onEach) throws Exception {
+
+		Class<?> type = method.getReturnType();
+
+		if (!Methods.returnsList(method)) {
+			if (Methods.returnsPrimitive(method))
+				return asScalarOf(type);
+			return asOneOf(type, onEach);
+		}
+
+		if (Methods.returnsPrimitive(method))
+			return asScalarListOf(Methods.getReturningTypeComponent(method));
+
+		return asListOf(Methods.getReturningTypeComponent(method), onEach);
 	}
 }

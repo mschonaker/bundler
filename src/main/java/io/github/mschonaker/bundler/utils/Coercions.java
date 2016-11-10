@@ -1,4 +1,4 @@
-package io.github.mschonaker.bundler.coercions;
+package io.github.mschonaker.bundler.utils;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;

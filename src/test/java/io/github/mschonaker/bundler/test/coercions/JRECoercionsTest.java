@@ -4,7 +4,7 @@ import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
 
-import io.github.mschonaker.bundler.coercions.Coercions;
+import io.github.mschonaker.bundler.utils.Coercions;
 
 public class JRECoercionsTest {
 
