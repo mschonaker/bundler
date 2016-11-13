@@ -16,6 +16,8 @@ public class User implements Serializable {
 
 	private List<String> roles;
 
+	private Preferences preferences;
+
 	public User(String username, String password, String realname, InputStream avatar, List<String> roles) {
 		this.username = username;
 		this.password = password;
@@ -75,6 +77,14 @@ public class User implements Serializable {
 		this.sub = sub;
 	}
 
+	public Preferences getPreferences() {
+		return preferences;
+	}
+
+	public void setPreferences(Preferences preferences) {
+		this.preferences = preferences;
+	}
+
 	@Override
 	public int hashCode() {
 		final int prime = 31;
@@ -114,6 +124,7 @@ public class User implements Serializable {
 
 	@Override
 	public String toString() {
-		return "User [username=" + username + ", password=" + password + ", realname=" + realname + ", roles=" + roles + "]";
+		return "User [username=" + username + ", password=" + password + ", realname=" + realname + ", avatar=" + avatar
+				+ ", sub=" + sub + ", roles=" + roles + ", preferences=" + preferences + "]";
 	}
 }

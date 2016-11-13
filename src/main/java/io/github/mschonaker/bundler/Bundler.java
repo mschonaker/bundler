@@ -1,6 +1,5 @@
 package io.github.mschonaker.bundler;
 
-import java.beans.PropertyDescriptor;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.reflect.InvocationHandler;
@@ -121,7 +120,7 @@ public class Bundler {
 				if (args != null && args.length > 0)
 					params.set("param", args[0]);
 
-				return execute(tx, localBundle, config, method, params);
+				return execute(tx, localBundle, config, method, params, null);
 
 			} catch (Throwable t) {
 
@@ -138,7 +137,7 @@ public class Bundler {
 	// Database.
 
 	private static Object execute(CurrentTransaction transaction, Bundle bundle, Config config, Method method,
-			ParamContext params) throws Exception {
+			ParamContext params, Object currentValue) throws Exception {
 
 		// Special case: no root sql.
 		if (bundle.sql == null) {
@@ -149,12 +148,14 @@ public class Bundler {
 			if (Methods.returnsList(method) || Methods.returnsPrimitive(method))
 				throw new IllegalArgumentException();
 
-			Object object = method.getReturnType().newInstance();
+			Object object = currentValue;
+			if (object == null)
+				object = method.getReturnType().newInstance();
 
 			for (Bundle sub : bundle.children.values()) {
 
-				Object value = execute(transaction, sub, config,
-						new PropertyDescriptor(sub.name, method.getReturnType()).getReadMethod(), params);
+				Object value = execute(transaction, sub, config, Beans.getReadMethod(sub.name, method.getReturnType()),
+						params, Beans.getNestedProperty(object, sub.name, config.isLenient()));
 
 				Beans.setNestedProperty(object, sub.name, value, config.isLenient(), config.coercions());
 			}
@@ -190,15 +191,15 @@ public class Bundler {
 				Result.OnEach onEach = new Result.OnEach() {
 
 					@Override
-					public <T> T onEach(Class<T> type, T object) throws Exception {
+					public Object onEach(Class<?> type, Object object) throws Exception {
 
 						if (bundle.children != null)
 							for (Bundle sub : bundle.children.values()) {
 
 								params.set("parent", object);
 
-								Object value = execute(transaction, sub, config,
-										new PropertyDescriptor(sub.name, type).getReadMethod(), params);
+								Object value = execute(transaction, sub, config, Beans.getReadMethod(sub.name, type),
+										params, Beans.getNestedProperty(object, sub.name, config.isLenient()));
 
 								Beans.setNestedProperty(object, sub.name, value, config.isLenient(),
 										config.coercions());
@@ -209,7 +210,7 @@ public class Bundler {
 
 				};
 
-				return result.toReturnTypeOf(method, onEach);
+				return result.toReturnTypeOf(method, onEach, currentValue);
 			}
 		}
 	}
@@ -325,7 +326,7 @@ public class Bundler {
 		CurrentTransaction tx = current.get();
 
 		if (tx == null)
-			throw new IllegalStateException("Not connected");
+			throw new IllegalStateException("Not transaction started");
 
 		return tx;
 	}

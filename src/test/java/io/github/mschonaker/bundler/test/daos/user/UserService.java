@@ -32,9 +32,15 @@ public interface UserService {
 	void illegalSyntax() throws SQLException;
 
 	void illegalSyntax2();
-	
+
 	User getUserWithSubSubBean(String username);
 
 	User getUserWithNonexistentProperty();
+
+	User getUserWithPreferences(String username);
+
+	User getUserWithPreferencesOneShot(String username);
+
+	User getUserWithPreferencesHybrid(String username);
 
 }

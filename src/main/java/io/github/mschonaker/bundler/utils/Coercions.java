@@ -17,10 +17,13 @@ public class Coercions {
 		JRE = new Coercions();
 		JRE.add(Object.class, String.class, (o, t) -> o.toString());
 		JRE.add(String.class, Integer.class, (o, t) -> Integer.parseInt(o));
+		JRE.add(String.class, int.class, (o, t) -> Integer.parseInt(o));
 		JRE.add(Number.class, Boolean.class, (o, t) -> o.intValue() != 0);
+		JRE.add(Number.class, boolean.class, (o, t) -> o.intValue() != 0);
 		JRE.add(String.class, Enum.class, (o, t) -> Enum.valueOf(t, o));
 		JRE.add(Integer.class, Enum.class, (o, t) -> t.getEnumConstants()[o]);
 		JRE.add(Enum.class, Integer.class, (o, t) -> o.ordinal());
+		JRE.add(Enum.class, int.class, (o, t) -> o.ordinal());
 		JRE.add(byte[].class, InputStream.class, (o, t) -> new ByteArrayInputStream(o));
 
 		JRE.add(Blob.class, InputStream.class, (o, t) -> {

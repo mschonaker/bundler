@@ -17,12 +17,23 @@
 			foreign key (username) references users(username)
 		);
 		
+		create table preferences (
+			username varchar(200) not null,
+			a tinyint(1) not null default 0 not null,
+			b tinyint(1) not null default 0,
+			primary key (username),
+			foreign key (username) references users(username)
+		);
+		
 		insert into users(username, password, realname) values('alpha', 'alpha pass', 'Alpha User');
 		insert into users(username, password, realname) values('beta', 'beta pass', 'Beta User');
 		
 		insert into user_role(username, rolename) values('alpha', 'admin');
 		insert into user_role(username, rolename) values('alpha', 'user');
 		insert into user_role(username, rolename) values('beta', 'user');
+		
+		insert into preferences(username, a, b) values ('alpha', 1, 1);
+		insert into preferences(username, a, b) values ('beta', 0, 0);
 				
 	]]>
 	</createTables>
@@ -107,5 +118,36 @@
 	<getUserWithNonexistentProperty>
 		select 123 as "property_doesnt_exist"
 	</getUserWithNonexistentProperty>
+
+	<getUserWithPreferences>
+		select * from users where username = ${param}
+		<preferences>
+			select * from preferences where username =
+			${parent.username}
+		</preferences>
+	</getUserWithPreferences>
+
+	<getUserWithPreferencesOneShot>
+		select users.*, preferences.a as
+		"preferences.a", preferences.b as "preferences.b"
+		from users inner join
+		preferences on users.username = preferences.username
+		where
+		users.username = ${param}
+	</getUserWithPreferencesOneShot>
+
+	<getUserWithPreferencesHybrid>
+		select users.*, preferences.a as
+		"preferences.a"
+		from users inner join
+		preferences on users.username =
+		preferences.username
+		where
+		users.username = ${param}
+		<preferences>
+			select b from preferences where username =
+			${parent.username}
+		</preferences>
+	</getUserWithPreferencesHybrid>
 
 </bundler>

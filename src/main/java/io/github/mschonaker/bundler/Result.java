@@ -24,7 +24,7 @@ class Result {
 	 */
 	static interface OnEach {
 
-		<T> T onEach(Class<T> type, T object) throws Exception;
+		Object onEach(Class<?> type, Object object) throws Exception;
 
 	}
 
@@ -67,12 +67,12 @@ class Result {
 						.collect(Collectors.joining());
 	}
 
-	private <T> List<T> asListOf(Class<T> targetClass, OnEach onEach) throws Exception {
+	private List<Object> asListOf(Class<?> targetClass, OnEach onEach) throws Exception {
 
-		List<T> list = new LinkedList<T>();
+		List<Object> list = new LinkedList<>();
 		while (rs.next()) {
 
-			T object = targetClass.newInstance();
+			Object object = targetClass.newInstance();
 
 			for (int i = 0; i < targetPropertyNames.length; i++) {
 				Object value = rs.getObject(i + 1);
@@ -90,7 +90,8 @@ class Result {
 	private <T> List<T> asScalarListOf(Class<T> targetClass) throws Exception {
 
 		if (targetPropertyNames.length != 1)
-			throw new IllegalArgumentException("Couldn't unbox. Have more than one column: " + targetPropertyNames.length);
+			throw new IllegalArgumentException(
+					"Couldn't unbox. Have more than one column: " + targetPropertyNames.length);
 
 		List<T> list = new LinkedList<T>();
 
@@ -100,12 +101,15 @@ class Result {
 		return list;
 	}
 
-	private <T> T asOneOf(Class<T> targetClass, OnEach onEach) throws Exception {
+	private Object asOneOf(Class<?> targetClass, OnEach onEach, Object currentValue) throws Exception {
+
+		Object object = currentValue;
 
 		if (!rs.next())
-			return null;
+			return object;
 
-		T object = targetClass.newInstance();
+		if (object == null)
+			object = targetClass.newInstance();
 
 		for (int i = 0; i < targetPropertyNames.length; i++) {
 			Object value = rs.getObject(i + 1);
@@ -123,7 +127,8 @@ class Result {
 	private <T> T asScalarOf(Class<T> targetClass) throws Exception {
 
 		if (targetPropertyNames.length != 1)
-			throw new IllegalArgumentException("Couldn't unbox. Have more than one column: " + targetPropertyNames.length);
+			throw new IllegalArgumentException(
+					"Couldn't unbox. Have more than one column: " + targetPropertyNames.length);
 
 		if (!rs.next())
 			return null;
@@ -136,14 +141,14 @@ class Result {
 		return targetClass.cast(config.coercions().coerce(value, targetClass));
 	}
 
-	public Object toReturnTypeOf(Method method, OnEach onEach) throws Exception {
+	public Object toReturnTypeOf(Method method, OnEach onEach, Object currentValue) throws Exception {
 
 		Class<?> type = method.getReturnType();
 
 		if (!Methods.returnsList(method)) {
 			if (Methods.returnsPrimitive(method))
 				return asScalarOf(type);
-			return asOneOf(type, onEach);
+			return asOneOf(type, onEach, currentValue);
 		}
 
 		if (Methods.returnsPrimitive(method))
