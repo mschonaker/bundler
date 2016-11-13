@@ -20,7 +20,6 @@ import org.junit.Test;
 import io.github.mschonaker.bundler.Bundler;
 import io.github.mschonaker.bundler.Bundler.Transaction;
 import io.github.mschonaker.bundler.BundlerSQLException;
-import io.github.mschonaker.bundler.BundlerValidationException;
 import io.github.mschonaker.bundler.test.daos.user.User;
 import io.github.mschonaker.bundler.test.daos.user.UserService;
 
@@ -224,13 +223,6 @@ public class TransactionalTest {
 			User user = service.getUserWithRoles("josep");
 			assertNull(user);
 		}
-	}
-
-	@Test(expected = BundlerValidationException.class)
-	public void testValidate() throws Exception {
-
-		Bundler.validate(service);
-
 	}
 
 	@Test(expected = BundlerSQLException.class)

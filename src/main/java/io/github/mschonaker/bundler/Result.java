@@ -78,7 +78,7 @@ class Result {
 				Object value = rs.getObject(i + 1);
 
 				String property = targetPropertyNames[i];
-				Beans.setNestedProperty(object, property, value, config.lenient(), config.coercions());
+				Beans.setNestedProperty(object, property, value, config.isLenient(), config.coercions());
 			}
 
 			list.add(onEach.onEach(targetClass, object));
@@ -111,7 +111,7 @@ class Result {
 			Object value = rs.getObject(i + 1);
 
 			String propertyName = targetPropertyNames[i];
-			Beans.setNestedProperty(object, propertyName, value, config.lenient(), config.coercions());
+			Beans.setNestedProperty(object, propertyName, value, config.isLenient(), config.coercions());
 		}
 
 		if (rs.next())

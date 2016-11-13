@@ -13,6 +13,7 @@ import org.junit.Test;
 
 import io.github.mschonaker.bundler.Bundler;
 import io.github.mschonaker.bundler.Bundler.Transaction;
+import io.github.mschonaker.bundler.Config;
 import io.github.mschonaker.bundler.test.daos.enums.EnumService;
 import io.github.mschonaker.bundler.test.daos.enums.SimpleEnum;
 
@@ -33,13 +34,11 @@ public class EnumTest {
 
 		ds = dataSource;
 
-		service = Bundler.inflate(EnumService.class);
+		service = Bundler.inflate(EnumService.class, new Config().lenient());
 		try (Transaction tx = Bundler.writeTransaction(dataSource)) {
 			service.createTables();
 			tx.success();
 		}
-
-		Bundler.validate(service);
 	}
 
 	@After
@@ -89,7 +88,8 @@ public class EnumTest {
 		}
 
 		try (Transaction tx = Bundler.readTransaction(ds)) {
-			assertEquals(Arrays.asList(new SimpleEnum[] { SimpleEnum.A, SimpleEnum.B, SimpleEnum.C }), service.listEnumsAsStrings());
+			assertEquals(Arrays.asList(new SimpleEnum[] { SimpleEnum.A, SimpleEnum.B, SimpleEnum.C }),
+					service.listEnumsAsStrings());
 		}
 	}
 
@@ -104,7 +104,8 @@ public class EnumTest {
 		}
 
 		try (Transaction tx = Bundler.readTransaction(ds)) {
-			assertEquals(Arrays.asList(new SimpleEnum[] { SimpleEnum.A, SimpleEnum.C, SimpleEnum.B }), service.listEnumsAsIntegers());
+			assertEquals(Arrays.asList(new SimpleEnum[] { SimpleEnum.A, SimpleEnum.C, SimpleEnum.B }),
+					service.listEnumsAsIntegers());
 		}
 	}
 }

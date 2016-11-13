@@ -21,7 +21,7 @@ public class Config {
 
 	private boolean lenient = true;
 	private Coercions coercions = Coercions.JRE;
-	private Map<String, Bundle> bundles = new HashMap<>();
+	private Map<String, Bundle> bundles;
 
 	public Config coercions(Coercions coercions) {
 		this.coercions = coercions;
@@ -30,6 +30,8 @@ public class Config {
 
 	public Config load(Reader reader) throws IOException {
 		try {
+			if (bundles == null)
+				bundles = new HashMap<>();
 			BundleLoader.load(bundles, new BufferedReader(reader));
 		} catch (Exception e) {
 			throw new IOException(e);
@@ -71,6 +73,16 @@ public class Config {
 		return this;
 	}
 
+	public Config lenient() {
+		lenient = true;
+		return this;
+	}
+
+	public Config strict() {
+		lenient = false;
+		return this;
+	}
+
 	Map<String, Bundle> bundles() {
 		return bundles;
 	}
@@ -79,7 +91,7 @@ public class Config {
 		return coercions;
 	}
 
-	boolean lenient() {
+	boolean isLenient() {
 		return lenient;
 	}
 }

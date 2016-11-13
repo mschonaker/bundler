@@ -16,6 +16,7 @@ import java.sql.Statement;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -37,9 +38,7 @@ public class Bundler {
 	 * Inflates the interface.
 	 */
 	public static <T> T inflate(Class<T> type) throws IOException {
-		Config config = new Config();
-		config.loadResource(type);
-		return inflate(type, config);
+		return inflate(type, null);
 	}
 
 	/**
@@ -48,36 +47,29 @@ public class Bundler {
 	public static <T> T inflate(Class<T> type, Config config) throws IOException {
 
 		Objects.requireNonNull(type, "type is required");
-		Objects.requireNonNull(config, "config is required");
+
+		if (config == null)
+			config = new Config();
 
 		Bundle root = new Bundle();
-		root.children = config.bundles();
+		Map<String, Bundle> bundles = config.bundles();
 
-		return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type }, new BundlerInvocationHandler(type, root, config)));
+		if (bundles == null) {
+			config.loadResource(type);
+			bundles = config.bundles();
+		}
+
+		root.children = bundles;
+
+		if (!config.isLenient())
+			validate(root, type);
+
+		return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type },
+				new BundlerInvocationHandler(root, config)));
 	}
 
-	// ---------------------------------------------------------------------
-	// Validations.
-
-	/**
-	 * Validates an already inflated object's bindings.
-	 *
-	 * @throws IllegalArgumentException
-	 *             if the provided object is not a valid inflated object.
-	 * @throws BundlerValidationException
-	 *             if there is an inconsistency between methods and queries.
-	 */
-	public static void validate(Object o) {
-
-		InvocationHandler handler = Proxy.getInvocationHandler(o);
-		if (!(handler instanceof BundlerInvocationHandler))
-			throw new IllegalArgumentException("Not a bundled instance");
-
-		BundlerInvocationHandler invocationHandler = (BundlerInvocationHandler) handler;
-		Bundle bundle = invocationHandler.bundle;
-
-		// The names of the methods of the interface.
-		Set<String> methods = Arrays.stream(invocationHandler.type.getMethods()).map(Method::getName).collect(Collectors.toSet());
+	private static void validate(Bundle bundle, Class<?> type) {
+		Set<String> methods = Arrays.stream(type.getMethods()).map(Method::getName).collect(Collectors.toSet());
 
 		// The names of the queries in the file.
 		Set<String> queries = bundle.children != null ? bundle.children.keySet() : Collections.<String>emptySet();
@@ -87,14 +79,16 @@ public class Bundler {
 		temp.removeAll(queries);
 
 		if (temp.size() > 0)
-			throw new BundlerValidationException("Couldn't map instance of class " + invocationHandler.type + ". Methods not found in queries file: " + temp.toString());
+			throw new BundlerValidationException("Couldn't map instance of class " + type
+					+ ". Methods not found in queries file: " + temp.toString());
 
 		temp.clear();
 		temp.addAll(queries);
 		temp.removeAll(methods);
 
 		if (temp.size() > 0)
-			throw new BundlerValidationException("Couldn't map instance of class " + invocationHandler.type + ". No method found for queries: " + temp.toString());
+			throw new BundlerValidationException(
+					"Couldn't map instance of class " + type + ". No method found for queries: " + temp.toString());
 	}
 
 	// ---------------------------------------------------------------------
@@ -102,12 +96,10 @@ public class Bundler {
 
 	private static class BundlerInvocationHandler implements InvocationHandler {
 
-		private final Class<?> type;
 		private final Bundle bundle;
 		private final Config config;
 
-		public BundlerInvocationHandler(Class<?> type, Bundle bundle, Config config) {
-			this.type = type;
+		public BundlerInvocationHandler(Bundle bundle, Config config) {
 			this.bundle = bundle;
 			this.config = config;
 		}
@@ -145,7 +137,8 @@ public class Bundler {
 	// ---------------------------------------------------------------------
 	// Database.
 
-	private static Object execute(CurrentTransaction transaction, Bundle bundle, Config config, Method method, ParamContext params) throws Exception {
+	private static Object execute(CurrentTransaction transaction, Bundle bundle, Config config, Method method,
+			ParamContext params) throws Exception {
 
 		// Special case: no root sql.
 		if (bundle.sql == null) {
@@ -160,9 +153,10 @@ public class Bundler {
 
 			for (Bundle sub : bundle.children.values()) {
 
-				Object value = execute(transaction, sub, config, new PropertyDescriptor(sub.name, method.getReturnType()).getReadMethod(), params);
+				Object value = execute(transaction, sub, config,
+						new PropertyDescriptor(sub.name, method.getReturnType()).getReadMethod(), params);
 
-				Beans.setNestedProperty(object, sub.name, value, config.lenient(), config.coercions());
+				Beans.setNestedProperty(object, sub.name, value, config.isLenient(), config.coercions());
 			}
 
 			return object;
@@ -203,9 +197,11 @@ public class Bundler {
 
 								params.set("parent", object);
 
-								Object value = execute(transaction, sub, config, new PropertyDescriptor(sub.name, type).getReadMethod(), params);
+								Object value = execute(transaction, sub, config,
+										new PropertyDescriptor(sub.name, type).getReadMethod(), params);
 
-								Beans.setNestedProperty(object, sub.name, value, config.lenient(), config.coercions());
+								Beans.setNestedProperty(object, sub.name, value, config.isLenient(),
+										config.coercions());
 							}
 
 						return object;
