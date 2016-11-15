@@ -1,4 +1,4 @@
-package io.github.mschonaker.bundler.test;
+package io.github.mschonaker.bundler.test.daos.enums;
 
 import static org.junit.Assert.assertEquals;
 
@@ -14,8 +14,6 @@ import org.junit.Test;
 import io.github.mschonaker.bundler.Bundler;
 import io.github.mschonaker.bundler.Bundler.Transaction;
 import io.github.mschonaker.bundler.Config;
-import io.github.mschonaker.bundler.test.daos.enums.EnumService;
-import io.github.mschonaker.bundler.test.daos.enums.SimpleEnum;
 
 public class EnumTest {
 

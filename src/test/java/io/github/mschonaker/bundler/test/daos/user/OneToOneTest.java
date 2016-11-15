@@ -1,4 +1,4 @@
-package io.github.mschonaker.bundler.test;
+package io.github.mschonaker.bundler.test.daos.user;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -14,8 +14,6 @@ import org.junit.Test;
 
 import io.github.mschonaker.bundler.Bundler;
 import io.github.mschonaker.bundler.Bundler.Transaction;
-import io.github.mschonaker.bundler.test.daos.user.User;
-import io.github.mschonaker.bundler.test.daos.user.UserService;
 
 public class OneToOneTest {
 

@@ -1,29 +1,27 @@
-package io.github.mschonaker.bundler.test;
+package io.github.mschonaker.bundler.test.daos.user;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintWriter;
 import java.util.List;
 
 import javax.sql.DataSource;
 
 import org.h2.jdbcx.JdbcDataSource;
-import org.junit.After;
-import org.junit.Before;
+import org.h2.util.IOUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import io.github.mschonaker.bundler.Bundler;
 import io.github.mschonaker.bundler.Bundler.Transaction;
-import io.github.mschonaker.bundler.BundlerSQLException;
-import io.github.mschonaker.bundler.test.daos.user.User;
-import io.github.mschonaker.bundler.test.daos.user.UserService;
 
-public class TransactionalTest {
+public class BasicTest {
 
 	private static DataSource ds;
 	private static UserService service;
@@ -31,41 +29,26 @@ public class TransactionalTest {
 	@BeforeClass
 	public static void beforeClass() throws Exception {
 
-		JdbcDataSource ds = new JdbcDataSource();
+		JdbcDataSource dataSource = new JdbcDataSource();
 
-		ds.setURL("jdbc:h2:mem:sampledb;DB_CLOSE_DELAY=-1");
-		ds.setUser("sa");
-		ds.setPassword("");
+		dataSource.setURL("jdbc:h2:mem:sampledb" + System.nanoTime() + ";DB_CLOSE_DELAY=-1;MODE=MySQL");
+		dataSource.setUser("sa");
+		dataSource.setPassword("");
 
-		TransactionalTest.ds = ds;
+		ds = dataSource;
 
 		service = Bundler.inflate(UserService.class);
-		try (Transaction tx = Bundler.writeTransaction(ds)) {
+		try (Transaction tx = Bundler.writeTransaction(dataSource)) {
 			service.createTables();
 			tx.success();
 		}
-	}
 
-	@Before
-	public void before() throws Exception {
-		try {
-			Bundler.assertConnected();
-			fail();
-		} catch (IllegalStateException e) {
-		}
-	}
-
-	@After
-	public void after() throws Exception {
-		try {
-			Bundler.assertConnected();
-			fail();
-		} catch (IllegalStateException e) {
-		}
+		Bundler.dumpDB(dataSource, new PrintWriter(System.out), null);
 	}
 
 	@Test
 	public void testAllUsers() throws Exception {
+
 		try (Transaction tx = Bundler.readTransaction(ds)) {
 
 			List<User> allUsers = service.getAllUsers();
@@ -79,7 +62,6 @@ public class TransactionalTest {
 			assertEquals("Beta User", allUsers.get(1).getRealname());
 			assertNull(allUsers.get(0).getRoles());
 			assertNull(allUsers.get(1).getRoles());
-
 		}
 	}
 
@@ -94,6 +76,7 @@ public class TransactionalTest {
 
 	@Test
 	public void testAllAvailableRoles() throws Exception {
+
 		try (Transaction tx = Bundler.readTransaction(ds)) {
 
 			List<String> allRoles = service.getAllAvailableRoles();
@@ -107,7 +90,6 @@ public class TransactionalTest {
 
 	@Test
 	public void testGetUser() throws Exception {
-
 		try (Transaction tx = Bundler.readTransaction(ds)) {
 
 			User user = service.getUser("alpha");
@@ -119,7 +101,13 @@ public class TransactionalTest {
 
 			user = service.getUser("jose perez");
 			assertNull(user);
+		}
+	}
 
+	@Test
+	public void testExistsUser() throws Exception {
+		try (Transaction tx = Bundler.readTransaction(ds)) {
+			assertTrue(service.existsUser("alpha"));
 		}
 	}
 
@@ -133,7 +121,6 @@ public class TransactionalTest {
 			assertTrue(roles.contains("admin"));
 			assertTrue(roles.contains("user"));
 			assertFalse(roles.contains("presidente"));
-
 		}
 	}
 
@@ -142,7 +129,6 @@ public class TransactionalTest {
 
 		User user;
 		try (Transaction tx = Bundler.writeTransaction(ds)) {
-
 			user = service.getUser("josep");
 			assertNull(user);
 
@@ -153,7 +139,6 @@ public class TransactionalTest {
 		}
 
 		try (Transaction tx = Bundler.readTransaction(ds)) {
-
 			User user2 = service.getUser("josep");
 			assertNotNull(user2);
 			assertEquals(user, user2);
@@ -167,14 +152,12 @@ public class TransactionalTest {
 		}
 
 		try (Transaction tx = Bundler.readTransaction(ds)) {
-
 			User user2 = service.getUser("josep");
 			assertNotNull(user2);
 			assertEquals("secretototal", user.getPassword());
 		}
 
 		try (Transaction tx = Bundler.writeTransaction(ds)) {
-
 			service.deleteUser("josep");
 			assertEquals((Long) 2L, service.countUsers());
 			tx.success();
@@ -198,41 +181,112 @@ public class TransactionalTest {
 
 			assertTrue(user.getRoles().contains("admin"));
 			assertTrue(user.getRoles().contains("user"));
+		}
+	}
+
+	@Test
+	public void testGetUserPage() throws Exception {
+
+		try (Transaction tx = Bundler.readTransaction(ds)) {
+
+			UserPage page = service.getUserPage(0, 1);
+			assertNotNull(page);
+			assertEquals((Long) 2L, page.getCount());
+			assertEquals(1, page.getList().size());
+			assertEquals("alpha", page.getList().get(0).getUsername());
+
+			page = service.getUserPage(1, 1);
+			assertNotNull(page);
+			assertEquals((Long) 2L, page.getCount());
+			assertEquals(1, page.getList().size());
+			assertEquals("beta", page.getList().get(0).getUsername());
 
 		}
 	}
 
 	@Test
-	public void testRollback() throws Exception {
+	public void testBlob() throws Exception {
 
 		try (Transaction tx = Bundler.writeTransaction(ds)) {
 
-			User user = service.getUserWithRoles("josep");
+			User user = service.getUser("josep");
 			assertNull(user);
 
-			user = new User("josep", "totalsecret", "José Pérez", null, null);
-			service.insertUser(user);
+			user = new User("josep", null, null, new ByteArrayInputStream("esto es un archivo gigante".getBytes()), null);
 
-			User user2 = service.getUserWithRoles("josep");
+			service.insertUser(user);
+			tx.success();
+		}
+
+		try (Transaction tx = Bundler.writeTransaction(ds)) {
+			User user2 = service.getUser("josep");
+			assertNotNull(user2);
+			ByteArrayOutputStream baos = new ByteArrayOutputStream();
+			IOUtils.copy(user2.getAvatar(), baos);
+			IOUtils.closeSilently(user2.getAvatar());
+			String text = new String(baos.toByteArray());
+			assertEquals("esto es un archivo gigante", text);
+
+			// Fetched again. It's a copy
+			user2 = service.getUser("josep");
+			assertNotNull(user2);
+			baos = new ByteArrayOutputStream();
+			IOUtils.copy(user2.getAvatar(), baos);
+			IOUtils.closeSilently(user2.getAvatar());
+			text = new String(baos.toByteArray());
+			assertEquals("esto es un archivo gigante", text);
+
+			user2 = service.getUser("josep");
 			assertNotNull(user2);
 
-			// Not marked as success. Should rollback.
+			// Stream not consumed. Can update.
+			service.updateUser(user2);
+
+			tx.success();
 		}
 
 		try (Transaction tx = Bundler.readTransaction(ds)) {
-			User user = service.getUserWithRoles("josep");
-			assertNull(user);
+			User user2 = service.getUser("josep");
+			assertNotNull(user2);
+			ByteArrayOutputStream baos = new ByteArrayOutputStream();
+			IOUtils.copy(user2.getAvatar(), baos);
+			IOUtils.closeSilently(user2.getAvatar());
+			String text = new String(baos.toByteArray());
+			assertEquals("esto es un archivo gigante", text);
+		}
+
+		try (Transaction tx = Bundler.writeTransaction(ds)) {
+			service.deleteUser("josep");
+			assertEquals((Long) 2L, service.countUsers());
+			tx.success();
 		}
 	}
 
-	@Test(expected = BundlerSQLException.class)
-	public void testException() throws Exception {
+	@Test
+	public void testSubSubBean() {
 
 		try (Transaction tx = Bundler.writeTransaction(ds)) {
 
-			service.illegalSyntax2();
+			User user = new User("fake", "saraza", "fake fake", null, null);
 
-			tx.success();
+			service.insertUser(user);
+
+			user = service.getUserWithSubSubBean("fake");
+
+			assertNotNull(user.getSub());
+			assertNotNull(user.getSub().getSub());
+			assertNotNull(user.getSub().getSub().getId());
+			assertEquals(13, user.getSub().getSub().getId().intValue());
+
+			service.deleteUser("fake");
+		}
+	}
+
+	@Test
+	public void testNonexistentProperty() {
+
+		try (Transaction tx = Bundler.writeTransaction(ds)) {
+			service.getUserWithNonexistentProperty();
 		}
 	}
 }
