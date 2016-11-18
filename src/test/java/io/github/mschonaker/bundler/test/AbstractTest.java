@@ -26,7 +26,7 @@ public abstract class AbstractTest {
 		dataSource.setPassword("");
 
 		ds = dataSource;
-		Bundler.dumpDB(dataSource, new PrintWriter(System.out), null);
+		Bundler.asJavaTypes(dataSource, new PrintWriter(System.out), null);
 
 		return Bundler.inflate(type, config);
 	}

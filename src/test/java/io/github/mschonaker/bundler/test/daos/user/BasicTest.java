@@ -19,7 +19,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import io.github.mschonaker.bundler.Bundler;
-import io.github.mschonaker.bundler.Bundler.Transaction;
+import io.github.mschonaker.bundler.Transaction;
 
 public class BasicTest {
 
@@ -43,7 +43,7 @@ public class BasicTest {
 			tx.success();
 		}
 
-		Bundler.dumpDB(dataSource, new PrintWriter(System.out), null);
+		Bundler.asJavaTypes(dataSource, new PrintWriter(System.out), null);
 	}
 
 	@Test
@@ -212,7 +212,8 @@ public class BasicTest {
 			User user = service.getUser("josep");
 			assertNull(user);
 
-			user = new User("josep", null, null, new ByteArrayInputStream("esto es un archivo gigante".getBytes()), null);
+			user = new User("josep", null, null, new ByteArrayInputStream("esto es un archivo gigante".getBytes()),
+					null);
 
 			service.insertUser(user);
 			tx.success();

@@ -13,7 +13,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import io.github.mschonaker.bundler.Bundler;
-import io.github.mschonaker.bundler.Bundler.Transaction;
+import io.github.mschonaker.bundler.Transaction;
 
 public class OneToOneTest {
 
@@ -37,7 +37,7 @@ public class OneToOneTest {
 			tx.success();
 		}
 
-		Bundler.dumpDB(dataSource, new PrintWriter(System.out), null);
+		Bundler.asJavaTypes(dataSource, new PrintWriter(System.out), null);
 	}
 
 	@Test

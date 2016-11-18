@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<bundler>
+	<createDatabase><![CDATA[
+		
+		create table users (
+			username varchar(200) not null primary key,
+			password varchar(20) not null,
+			realname varchar(200) not null
+		);
+		
+		insert into users(username, password, realname) 
+		values('user-a', 'secret', 'User A');
+		
+		insert into users(username, password, realname) 
+		values('user-b', 'secret', 'User B');
+		
+		insert into users(username, password, realname) 
+		values('user-c', 'secret', 'User C');
+		
+	]]></createDatabase>
+	
+	<findAll>
+		select * from users
+	</findAll>
+
+</bundler>

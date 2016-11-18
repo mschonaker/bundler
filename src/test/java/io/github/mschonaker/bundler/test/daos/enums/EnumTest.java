@@ -12,8 +12,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import io.github.mschonaker.bundler.Bundler;
-import io.github.mschonaker.bundler.Bundler.Transaction;
 import io.github.mschonaker.bundler.Config;
+import io.github.mschonaker.bundler.Transaction;
 
 public class EnumTest {
 

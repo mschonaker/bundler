@@ -230,15 +230,6 @@ public class Bundler {
 
 	private static final ThreadLocal<CurrentTransaction> current = new InheritableThreadLocal<CurrentTransaction>();
 
-	public static interface Transaction extends AutoCloseable {
-
-		void success();
-
-		@Override
-		public void close();
-
-	}
-
 	public static Transaction readTransaction(DataSource ds) {
 		return connect(ds, true, false);
 	}
@@ -338,7 +329,7 @@ public class Bundler {
 	 * Helper method that dumps all the tables in the database, including the
 	 * Java types that should be used in mapping.
 	 */
-	public static void dumpDB(DataSource ds, PrintWriter writer, Character identifierQuote) {
+	public static void asJavaTypes(DataSource ds, PrintWriter writer, Character identifierQuote) {
 
 		try (Connection connection = ds.getConnection()) {
 

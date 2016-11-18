@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<bundler>
+	
+	<createSchema>
+		create table users (
+		username varchar(200) not null primary key,
+		password varchar(20) not null,
+		realname varchar(200) not null
+		)
+	</createSchema>
+	
+	<findAll>
+		select username, password, realname
+		from users offset ${params[0]} limit ${params[1]}
+	</findAll>
+
+	<find>
+		select username, password, realname
+		from users where username = ${param}
+	</find>
+
+	<count>
+		select count(*) from users
+	</count>
+
+	<upsert>
+		merge into users(username, password, realname)
+		values(${param.username}, ${param.password}, ${param.realname})
+	</upsert>
+
+	<insert>
+		insert into users(username, password, realname)
+		values(${param.username}, ${param.password}, ${param.realname})
+	</insert>
+
+	<update>
+		update users set
+		password = ${param.password},
+		realname = ${param.realname}
+		where username = ${param.username}
+	</update>
+
+	<delete>
+		delete from users where username = ${param}
+	</delete>
+</bundler>

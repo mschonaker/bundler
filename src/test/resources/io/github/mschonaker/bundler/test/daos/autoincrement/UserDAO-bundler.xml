@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<bundler>
+	<createSchema>
+		create table users (
+			id bigint auto_increment not null primary key,
+			username varchar(200) not null,
+			password varchar(20) not null,
+			realname varchar(200) not null,
+			unique key (username)
+		)
+	</createSchema>
+
+	<findAll>
+		select id, username, password, realname
+		from users
+	</findAll>
+
+	<find>
+		select id, username, password, realname
+		from users where id = ${param}
+	</find>
+
+	<insert>
+		insert into users(username, password, realname)
+		values(${param.username}, ${param.password}, ${param.realname})
+	</insert>
+</bundler>
