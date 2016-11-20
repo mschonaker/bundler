@@ -161,15 +161,11 @@
 					<relocations>
 						<relocation>
 							<pattern>javax.el</pattern>
-							<shadedPattern>shaded.bundler.shaded.javax.el</shadedPattern>
+							<shadedPattern>io.github.mschonaker.bundler.shaded.javax.el</shadedPattern>
 						</relocation>
 						<relocation>
 							<pattern>de.odysseus</pattern>
-							<shadedPattern>shaded.bundler.shaded.de.odysseus</shadedPattern>
-						</relocation>
-						<relocation>
-							<pattern>org.apache</pattern>
-							<shadedPattern>shaded.bundler.shaded.org.apache</shadedPattern>
+							<shadedPattern>io.github.mschonaker.bundler.shaded.de.odysseus</shadedPattern>
 						</relocation>
 					</relocations>
 				</configuration>
